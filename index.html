@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>國王遊戲抽籤</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <title>國王遊戲抽籤 v4</title>
   <style>
     :root {
       --bg: #0c0c0c;
@@ -488,7 +490,7 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <h1>國王遊戲</h1>
+        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v4</span></h1>
         <p>持牌抽籤</p>
       </div>
       <div class="header-right">
@@ -533,6 +535,7 @@
             <div class="actions">
               <button type="button" class="primary" id="btn-penalty">抽出處罰</button>
             </div>
+            <p class="col-hint" id="penalty-count-hint" style="margin-top:0;padding-top:0.4vh">清單 <strong id="penalty-count-inline">0</strong> 則（設定可編輯）</p>
           </div>
           <p class="col-hint" id="penalty-col-hint">可不抽國王，單獨抽處罰（Beer Pong 等）</p>
         </div>
@@ -606,6 +609,7 @@
             <div class="bulk-actions">
               <button type="button" class="primary" id="bulk-replace">取代全部清單</button>
               <button type="button" id="bulk-append">附加到現有清單</button>
+              <button type="button" id="restore-defaults">還原內建 13 則</button>
               <button type="button" class="danger ghost" id="bulk-clear">清空清單</button>
             </div>
           </div>
@@ -618,8 +622,8 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script>
-    const STORAGE_KEY = "king-game-v3";
-    const PENALTIES_VERSION = 3;
+    const STORAGE_KEY = "king-game-v4";
+    const PENALTIES_VERSION = 4;
 
     const SUITS = [
       { id: "spade", symbol: "♠" },
@@ -719,6 +723,13 @@
 
     function load() {
       try {
+        // 清掉舊版 key，避免空清單／舊邏輯殘留
+        try {
+          localStorage.removeItem("king-game-v1");
+          localStorage.removeItem("king-game-v2");
+          localStorage.removeItem("king-game-v3");
+        } catch (_) { /* ignore */ }
+
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
           state.groupNames = defaultNames(state.groupCount);
@@ -736,7 +747,6 @@
         } else {
           state.groupNames = defaultNames(state.groupCount);
         }
-        // 預設清單版本升級時，覆寫為最新內建清單（使用者之後仍可自行改）
         if (data.penaltiesVersion === PENALTIES_VERSION && Array.isArray(data.penalties) && data.penalties.length) {
           state.penalties = data.penalties;
         } else {
@@ -745,6 +755,10 @@
         ensureNamesLength();
       } catch (_) {
         state.groupNames = defaultNames(state.groupCount);
+        state.penalties = [...DEFAULT_PENALTIES];
+      }
+      // 絕對不要讓處罰清單是空的（否則按鈕會被禁用）
+      if (!state.penalties.length) {
         state.penalties = [...DEFAULT_PENALTIES];
       }
     }
@@ -818,6 +832,8 @@
       document.getElementById("group-summary").textContent = `${state.groupCount} 組`;
       document.getElementById("deck-summary").textContent = String(buildDeck().length);
       document.getElementById("penalty-count").textContent = String(state.penalties.length);
+      const inline = document.getElementById("penalty-count-inline");
+      if (inline) inline.textContent = String(state.penalties.length);
     }
 
     function renderTargetSlots() {
@@ -1163,6 +1179,14 @@
       save();
       renderPenalties();
       toast("已清空處罰清單");
+    });
+
+    document.getElementById("restore-defaults").addEventListener("click", () => {
+      state.penalties = [...DEFAULT_PENALTIES];
+      save();
+      renderPenalties();
+      updateButtons();
+      toast(`已還原內建 ${DEFAULT_PENALTIES.length} 則處罰`);
     });
 
     load();
