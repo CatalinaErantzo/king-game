@@ -523,7 +523,7 @@
 
         <!-- 2. 處罰 -->
         <div class="col" id="col-penalty" data-col="penalty">
-          <div class="col-step">步驟 2</div>
+          <div class="col-step">可獨立</div>
           <div class="col-title">處罰內容</div>
           <div class="col-body">
             <div class="penalty-box">
@@ -531,10 +531,10 @@
               <div class="flow-sub hidden" id="direction-display"></div>
             </div>
             <div class="actions">
-              <button type="button" class="primary" id="btn-penalty" disabled>抽出處罰</button>
+              <button type="button" class="primary" id="btn-penalty">抽出處罰</button>
             </div>
           </div>
-          <p class="col-hint" id="penalty-col-hint">先有國王，再決定要做什麼</p>
+          <p class="col-hint" id="penalty-col-hint">可不抽國王，單獨抽處罰（Beer Pong 等）</p>
         </div>
 
         <!-- 3. 受罰 -->
@@ -618,7 +618,8 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script>
-    const STORAGE_KEY = "king-game-v2";
+    const STORAGE_KEY = "king-game-v3";
+    const PENALTIES_VERSION = 3;
 
     const SUITS = [
       { id: "spade", symbol: "♠" },
@@ -629,11 +630,19 @@
     const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
     const DEFAULT_PENALTIES = [
-      "真心話一題",
-      "喝一杯",
-      "做一個指定動作",
-      "說一句指定台詞",
-      "十秒對視",
+      "同組所有人跟被抽到的鬼嘴對嘴親一下",
+      "被抽到的人脫下兩件衣服或者飾品，同組的人一件，不許回穿",
+      "30秒內女生在組內男身身上坐破氣球，不然全組一公杯",
+      "被抽到的人被全組舔一下耳垂",
+      "國王指定鬼組的異性互相做某件事情",
+      "鬼的那組男生被全組女生打巴掌",
+      "30秒內把全組男生的上衣或褲子脫掉一件，不然全組喝公杯",
+      "全組男生身上放食物，女生要在15秒內用嘴咬下來吃掉，不然全組喝公杯",
+      "全組脫掉襪子沒有襪子脫鞋子，都沒有就隨便脫，三輪內不許回穿",
+      "同組所有人用嘴餵酒給鬼喝",
+      "該組的每一個女生與同組的男生雙眼對視說，我想要你吃我的鮑魚",
+      "同組女生每人獲得1,000元小費",
+      "同組所有人跟吸一下鬼的舌頭，男生不想吸同性可以喝3個shot跳過",
     ];
 
     const state = {
@@ -713,6 +722,7 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) {
           state.groupNames = defaultNames(state.groupCount);
+          state.penalties = [...DEFAULT_PENALTIES];
           return;
         }
         const data = JSON.parse(raw);
@@ -721,15 +731,21 @@
         if (data.womenPerGroup != null) state.womenPerGroup = data.womenPerGroup;
         if (data.targetCount) state.targetCount = data.targetCount;
         if (typeof data.drawDirection === "boolean") state.drawDirection = data.drawDirection;
-        if (Array.isArray(data.penalties) && data.penalties.length) state.penalties = data.penalties;
         if (Array.isArray(data.groupNames) && data.groupNames.length) {
           state.groupNames = data.groupNames;
         } else {
           state.groupNames = defaultNames(state.groupCount);
         }
+        // 預設清單版本升級時，覆寫為最新內建清單（使用者之後仍可自行改）
+        if (data.penaltiesVersion === PENALTIES_VERSION && Array.isArray(data.penalties) && data.penalties.length) {
+          state.penalties = data.penalties;
+        } else {
+          state.penalties = [...DEFAULT_PENALTIES];
+        }
         ensureNamesLength();
       } catch (_) {
         state.groupNames = defaultNames(state.groupCount);
+        state.penalties = [...DEFAULT_PENALTIES];
       }
     }
 
@@ -742,6 +758,7 @@
         drawDirection: state.drawDirection,
         groupNames: state.groupNames,
         penalties: state.penalties,
+        penaltiesVersion: PENALTIES_VERSION,
       }));
     }
 
@@ -767,7 +784,7 @@
       `;
     }
 
-    /* 順序：國王 → 處罰 → 受罰 */
+    /* 國王／受罰依序；處罰可獨立隨時抽（含重抽） */
     function updateSteps() {
       const r = state.round;
       const cols = {
@@ -777,29 +794,24 @@
       };
       Object.values(cols).forEach((c) => c.classList.remove("current", "done"));
 
+      if (r.penalty) cols.penalty.classList.add("done");
+      else cols.penalty.classList.add("current");
+
       if (!r.king) {
         cols.king.classList.add("current");
-      } else if (!r.penalty) {
-        cols.king.classList.add("done");
-        cols.penalty.classList.add("current");
-      } else if (r.targets.length < state.targetCount) {
-        cols.king.classList.add("done");
-        cols.penalty.classList.add("done");
-        cols.target.classList.add("current");
       } else {
         cols.king.classList.add("done");
-        cols.penalty.classList.add("done");
-        cols.target.classList.add("done");
+        if (r.targets.length >= state.targetCount) cols.target.classList.add("done");
+        else cols.target.classList.add("current");
       }
     }
 
     function updateButtons() {
       const r = state.round;
       document.getElementById("btn-king").disabled = busy || !!r.king;
-      document.getElementById("btn-penalty").disabled =
-        busy || !r.king || !!r.penalty || !state.penalties.length;
+      document.getElementById("btn-penalty").disabled = busy || !state.penalties.length;
       document.getElementById("btn-target").disabled =
-        busy || !r.penalty || r.targets.length >= state.targetCount;
+        busy || !r.king || r.targets.length >= state.targetCount;
     }
 
     function renderHeader() {
@@ -883,13 +895,15 @@
           dirEl.textContent = "方向：男→女 或 女→男";
           dirEl.classList.remove("reveal");
         }
-        btn.textContent = "抽出處罰與方向";
-        hint.textContent = "可一併抽出男女方向（設定可關閉）";
+        btn.textContent = state.round.penalty ? "再抽處罰與方向" : "抽出處罰與方向";
+        hint.textContent = "可獨立抽；可選男女方向（設定開關）";
       } else {
-        dirEl.classList.add("hidden");
-        dirEl.textContent = "";
-        btn.textContent = "抽出處罰";
-        hint.textContent = "先有國王，再決定要做什麼";
+        if (!state.round.direction) {
+          dirEl.classList.add("hidden");
+          dirEl.textContent = "";
+        }
+        btn.textContent = state.round.penalty ? "再抽處罰" : "抽出處罰";
+        hint.textContent = "可不抽國王，單獨抽處罰（Beer Pong 等）";
       }
     }
 
@@ -936,7 +950,7 @@
     }
 
     async function drawPenalty() {
-      if (busy || !state.round.king || state.round.penalty) return;
+      if (busy) return;
       if (!state.penalties.length) {
         toast("請先在設定貼上處罰項目");
         return;
@@ -955,7 +969,10 @@
       const start = performance.now();
       while (performance.now() - start < duration) {
         display.textContent = pick(state.penalties);
-        if (useDir) dirEl.textContent = pick(dirs);
+        if (useDir) {
+          dirEl.classList.remove("hidden");
+          dirEl.textContent = pick(dirs);
+        }
         await sleep(70);
       }
 
@@ -975,12 +992,13 @@
       }
 
       busy = false;
+      syncDirectionUi();
       updateSteps();
       updateButtons();
     }
 
     async function drawTarget() {
-      if (busy || !state.round.penalty) return;
+      if (busy || !state.round.king) return;
       if (state.round.targets.length >= state.targetCount) return;
       if (!state.round.remaining.length) {
         toast("牌抽完了，請開新一輪");
@@ -1148,6 +1166,7 @@
     });
 
     load();
+    save(); // 寫入最新 penaltiesVersion，讓內建清單成為此瀏覽器基準
     syncSettingsInputs();
     renderPenalties();
     renderHeader();
