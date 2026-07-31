@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>國王遊戲抽籤</title>
+  <style>
+    :root {
+      --bg: #0c0c0c;
+      --bg-elevated: #141414;
+      --bg-hover: #1a1a1a;
+      --border: #2a2a2a;
+      --border-strong: #3a3a3a;
+      --text: #e8e8e8;
+      --text-muted: #8b8b8b;
+      --text-dim: #5c5c5c;
+      --accent: #6b9eff;
+      --accent-dim: rgba(107, 158, 255, 0.15);
+      --accent-border: rgba(107, 158, 255, 0.35);
+      --success: #7dba8a;
+      --danger: #c97a7a;
+      --danger-dim: rgba(201, 122, 122, 0.12);
+      --spade: #c8c8c8;
+      --heart: #c97a7a;
+      --diamond: #c9a07a;
+      --club: #7a9ac9;
+      --radius: 10px;
+      --font: "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      --mono: "SF Mono", "Cascadia Code", "Consolas", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: clamp(14px, 1.35vw, 20px);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    body {
+      background:
+        radial-gradient(ellipse 70% 45% at 50% -10%, rgba(107, 158, 255, 0.06), transparent 55%),
+        var(--bg);
+    }
+
+    button, input, select, textarea { font: inherit; color: inherit; }
+
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+      transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) {
+      background: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+    button:active:not(:disabled) { transform: scale(0.98); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+    button.primary {
+      background: var(--accent-dim);
+      border-color: var(--accent-border);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    button.primary:hover:not(:disabled) {
+      background: rgba(107, 158, 255, 0.22);
+    }
+    button.ghost { background: transparent; }
+    button.danger {
+      border-color: rgba(201, 122, 122, 0.35);
+      color: var(--danger);
+      background: var(--danger-dim);
+    }
+
+    .app {
+      height: 100%;
+      max-width: 100vw;
+      margin: 0 auto;
+      padding: 1.1vh 1.6vw 1.4vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header.app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-shrink: 0;
+      padding-bottom: 0.9vh;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 0.85rem;
+    }
+    .brand h1 {
+      font-size: clamp(1.35rem, 2.4vw, 2rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+    }
+    .brand p {
+      color: var(--text-muted);
+      font-size: 0.9em;
+    }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .header-meta {
+      text-align: right;
+      color: var(--text-muted);
+      font-size: 0.9em;
+    }
+    .header-meta strong { color: var(--text); font-weight: 600; }
+
+    .tabs {
+      display: flex;
+      gap: 0.25rem;
+    }
+    .tab {
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 0.4rem 0.85rem;
+      font-weight: 500;
+      border-radius: 8px;
+    }
+    .tab:hover:not(:disabled) { color: var(--text); background: var(--bg-hover); }
+    .tab.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: var(--accent-border);
+    }
+
+    .panel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      padding-top: 1.2vh;
+    }
+    .panel.active { display: flex; flex-direction: column; }
+
+    /* —— 16:9 橫式三欄 —— */
+    .board {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1fr;
+      gap: 1vw;
+    }
+
+    .col {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.4vh 1.1vw;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 0;
+      position: relative;
+    }
+    .col.current {
+      border-color: var(--accent-border);
+      box-shadow: inset 0 0 0 1px var(--accent-border);
+    }
+    .col.done { border-color: rgba(125, 186, 138, 0.28); }
+
+    .col-step {
+      font-size: 0.78em;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.45vh;
+    }
+    .col.current .col-step { color: var(--accent); }
+    .col.done .col-step { color: var(--success); }
+
+    .col-title {
+      font-size: clamp(1rem, 1.7vw, 1.35rem);
+      font-weight: 650;
+      margin-bottom: 1.2vh;
+      text-align: center;
+    }
+    .col-hint {
+      color: var(--text-muted);
+      font-size: 0.85em;
+      text-align: center;
+      margin-top: auto;
+      padding-top: 1vh;
+      line-height: 1.35;
+    }
+
+    .col-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 0;
+      gap: 1.2vh;
+    }
+
+    .playing-card {
+      width: min(22vh, 11vw, 160px);
+      height: min(31vh, 15.5vw, 225px);
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background: linear-gradient(160deg, #1a1a1a, #121212);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.1em;
+      box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35);
+      flex-shrink: 0;
+    }
+    .playing-card .rank {
+      font-family: var(--mono);
+      font-size: clamp(1.8rem, 4.2vh, 2.8rem);
+      font-weight: 700;
+      line-height: 1;
+    }
+    .playing-card .suit {
+      font-size: clamp(1.5rem, 3.6vh, 2.4rem);
+      line-height: 1;
+    }
+    .playing-card.spade, .playing-card.club { color: var(--spade); }
+    .playing-card.heart { color: var(--heart); }
+    .playing-card.diamond { color: var(--diamond); }
+    .playing-card.empty {
+      color: var(--text-dim);
+      border-style: dashed;
+      box-shadow: none;
+    }
+    .playing-card .card-tag {
+      margin-top: 0.55em;
+      font-size: 0.8em;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .cards-row {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 0.7vw;
+      justify-content: center;
+      align-items: center;
+    }
+    .cards-row .playing-card {
+      width: min(18vh, 9vw, 130px);
+      height: min(25.5vh, 12.7vw, 185px);
+    }
+    .cards-row.multi-2 .playing-card,
+    .cards-row.multi-3 .playing-card {
+      width: min(15vh, 7.5vw, 110px);
+      height: min(21vh, 10.5vw, 155px);
+    }
+
+    .penalty-box {
+      width: 100%;
+      text-align: center;
+      padding: 0 0.4vw;
+    }
+    .flow-value {
+      font-size: clamp(1.25rem, 3.2vh, 2.35rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.25;
+      min-height: 1.3em;
+      word-break: break-word;
+    }
+    .flow-value.muted { color: var(--text-dim); font-weight: 500; font-size: clamp(1rem, 2.2vh, 1.4rem); }
+    .flow-value.accent { color: var(--accent); }
+    .flow-sub {
+      color: var(--text-muted);
+      font-size: clamp(0.95rem, 2vh, 1.35rem);
+      margin-top: 1vh;
+      min-height: 1.4em;
+    }
+    .flow-value.rolling, .playing-card.rolling {
+      animation: pulse 0.16s ease-in-out infinite alternate;
+      color: var(--text-dim);
+    }
+    @keyframes pulse {
+      from { opacity: 0.4; }
+      to { opacity: 1; }
+    }
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(6px) scale(0.97); }
+      to { opacity: 1; transform: none; }
+    }
+    .reveal { animation: reveal 0.35s ease-out; }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      justify-content: center;
+      flex-shrink: 0;
+      padding-top: 0.6vh;
+    }
+
+    .footer-bar {
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+      padding-top: 1vh;
+    }
+
+    /* Settings（可捲動） */
+    #panel-settings {
+      overflow: auto;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1vw;
+      align-content: start;
+    }
+    .card {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.1rem;
+    }
+    .section-title {
+      font-size: 0.78em;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+    .field { margin-bottom: 0.85rem; }
+    .field label {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.88em;
+      margin-bottom: 0.35rem;
+    }
+    .field input[type="number"],
+    .field input[type="text"],
+    .field textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.75rem;
+      outline: none;
+    }
+    .field input:focus, .field textarea:focus { border-color: var(--accent-border); }
+    .field textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.45;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0.6rem;
+    }
+    .name-list { display: flex; flex-direction: column; gap: 0.4rem; }
+    .name-row { display: flex; align-items: center; gap: 0.5rem; }
+    .name-row .idx {
+      color: var(--text-muted);
+      width: 1.4rem;
+      text-align: right;
+      font-size: 0.88em;
+    }
+    .name-row input { flex: 1; }
+    .penalty-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      max-height: 22vh;
+      overflow-y: auto;
+      margin-bottom: 0.85rem;
+    }
+    .penalty-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.5rem 0.35rem 0.55rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .penalty-item input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 0.35rem 0.45rem;
+      font-size: 0.92em;
+      outline: none;
+    }
+    .penalty-item input[type="text"]:hover {
+      border-color: var(--border);
+    }
+    .penalty-item input[type="text"]:focus {
+      border-color: var(--accent-border);
+      background: var(--bg-elevated);
+    }
+    .penalty-item button { padding: 0.25rem 0.5rem; font-size: 0.82em; flex-shrink: 0; }
+    .settings-note { color: var(--text-muted); font-size: 0.88em; margin-top: 0.65rem; }
+    .bulk-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.5rem; }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.7rem;
+      padding: 0.75rem 0;
+      border-top: 1px solid var(--border);
+      cursor: pointer;
+      margin-bottom: 0.25rem;
+    }
+    .check-row input {
+      margin-top: 0.25rem;
+      width: 1.1rem;
+      height: 1.1rem;
+      accent-color: var(--accent);
+      flex-shrink: 0;
+    }
+    .check-row strong {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.15rem;
+    }
+    .check-row small {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.88em;
+      line-height: 1.35;
+    }
+    .flow-sub.hidden { display: none; }
+
+    .toast {
+      position: fixed;
+      bottom: 2vh;
+      left: 50%;
+      transform: translateX(-50%) translateY(140%);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      padding: 0.65rem 1.1rem;
+      border-radius: 8px;
+      z-index: 50;
+      transition: transform 0.25s ease;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+      max-width: 90vw;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+
+    @media (max-aspect-ratio: 4/3) {
+      html, body { overflow: auto; }
+      .app { height: auto; min-height: 100%; }
+      .board {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+      }
+      .playing-card {
+        width: 120px;
+        height: 170px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="brand">
+        <h1>國王遊戲</h1>
+        <p>持牌抽籤</p>
+      </div>
+      <div class="header-right">
+        <div class="header-meta">
+          <div><strong id="group-summary">5 組</strong> · <span id="deck-summary">40</span> 張牌 · 處罰 <strong id="penalty-count">0</strong></div>
+        </div>
+        <nav class="tabs" role="tablist">
+          <button type="button" class="tab active" data-tab="play">本輪</button>
+          <button type="button" class="tab" data-tab="settings">設定</button>
+        </nav>
+      </div>
+    </header>
+
+    <section id="panel-play" class="panel active">
+      <div class="board">
+        <!-- 1. 國王 -->
+        <div class="col current" id="col-king" data-col="king">
+          <div class="col-step">步驟 1</div>
+          <div class="col-title">國王牌</div>
+          <div class="col-body">
+            <div class="playing-card empty" id="king-card">
+              <div class="rank">?</div>
+              <div class="suit">—</div>
+              <div class="card-tag">國王</div>
+            </div>
+            <div class="actions">
+              <button type="button" class="primary" id="btn-king">抽出國王牌</button>
+            </div>
+          </div>
+          <p class="col-hint">拿到這張的人當國王</p>
+        </div>
+
+        <!-- 2. 處罰 -->
+        <div class="col" id="col-penalty" data-col="penalty">
+          <div class="col-step">步驟 2</div>
+          <div class="col-title">處罰內容</div>
+          <div class="col-body">
+            <div class="penalty-box">
+              <div class="flow-value muted" id="penalty-display">尚未抽出</div>
+              <div class="flow-sub hidden" id="direction-display"></div>
+            </div>
+            <div class="actions">
+              <button type="button" class="primary" id="btn-penalty" disabled>抽出處罰</button>
+            </div>
+          </div>
+          <p class="col-hint" id="penalty-col-hint">先有國王，再決定要做什麼</p>
+        </div>
+
+        <!-- 3. 受罰 -->
+        <div class="col" id="col-target" data-col="target">
+          <div class="col-step">步驟 3</div>
+          <div class="col-title">受罰牌</div>
+          <div class="col-body">
+            <div class="cards-row" id="target-cards">
+              <div class="playing-card empty" id="target-card-1">
+                <div class="rank">?</div>
+                <div class="suit">—</div>
+                <div class="card-tag">受罰</div>
+              </div>
+            </div>
+            <div class="actions">
+              <button type="button" class="primary" id="btn-target" disabled>抽出受罰牌</button>
+            </div>
+          </div>
+          <p class="col-hint">拿到的人整組被罰（可罰到國王自己組）</p>
+        </div>
+      </div>
+      <div class="footer-bar">
+        <button type="button" class="ghost" id="btn-reset">開新一輪</button>
+      </div>
+    </section>
+
+    <section id="panel-settings" class="panel">
+      <div class="settings-grid">
+        <div class="card">
+          <h2 class="section-title">組別與牌組</h2>
+          <div class="field-row">
+            <div class="field">
+              <label for="input-groups">組數</label>
+              <input type="number" id="input-groups" min="2" max="12" value="5" />
+            </div>
+            <div class="field">
+              <label for="input-men">每組男生</label>
+              <input type="number" id="input-men" min="0" max="20" value="2" />
+            </div>
+            <div class="field">
+              <label for="input-women">每組女生</label>
+              <input type="number" id="input-women" min="0" max="30" value="6" />
+            </div>
+          </div>
+          <div class="field">
+            <label>組名（可手動修改）</label>
+            <div class="name-list" id="name-list"></div>
+          </div>
+          <div class="field">
+            <label for="input-targets">每輪受罰牌數</label>
+            <input type="number" id="input-targets" min="1" max="3" value="1" />
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="input-direction" />
+            <span>
+              <strong>一併抽出方向</strong>
+              <small>選用時才抽「男生→女生／女生→男生」；不勾選則只抽處罰內容</small>
+            </span>
+          </label>
+          <p class="settings-note">預設 40 張：A–10 × 四花色。同輪抽牌不放回。</p>
+        </div>
+
+        <div class="card">
+          <h2 class="section-title">處罰項目（可整批貼上）</h2>
+          <ul class="penalty-list" id="penalty-list"></ul>
+          <div class="field">
+            <label for="bulk-input">整批貼上（一行一則）</label>
+            <textarea id="bulk-input" placeholder="真心話一題&#10;喝一杯&#10;十秒對視&#10;…"></textarea>
+            <div class="bulk-actions">
+              <button type="button" class="primary" id="bulk-replace">取代全部清單</button>
+              <button type="button" id="bulk-append">附加到現有清單</button>
+              <button type="button" class="danger ghost" id="bulk-clear">清空清單</button>
+            </div>
+          </div>
+          <p class="settings-note">存於本機瀏覽器；換電腦請重新貼上。</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    const STORAGE_KEY = "king-game-v2";
+
+    const SUITS = [
+      { id: "spade", symbol: "♠" },
+      { id: "heart", symbol: "♥" },
+      { id: "diamond", symbol: "♦" },
+      { id: "club", symbol: "♣" },
+    ];
+    const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+
+    const DEFAULT_PENALTIES = [
+      "真心話一題",
+      "喝一杯",
+      "做一個指定動作",
+      "說一句指定台詞",
+      "十秒對視",
+    ];
+
+    const state = {
+      groupCount: 5,
+      menPerGroup: 2,
+      womenPerGroup: 6,
+      groupNames: [],
+      targetCount: 1,
+      drawDirection: false,
+      penalties: [...DEFAULT_PENALTIES],
+      round: {
+        penalty: null,
+        direction: null,
+        king: null,
+        targets: [],
+        remaining: [],
+      },
+    };
+
+    let busy = false;
+
+    function defaultNames(n) {
+      return Array.from({ length: n }, (_, i) => `第 ${i + 1} 組`);
+    }
+
+    function buildDeck() {
+      const deck = [];
+      for (const suit of SUITS) {
+        for (const rank of RANKS) {
+          deck.push({ suit: suit.id, symbol: suit.symbol, rank, label: `${suit.symbol}${rank}` });
+        }
+      }
+      return deck;
+    }
+
+    function shuffle(arr) {
+      const a = [...arr];
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function pick(arr) {
+      return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function sleep(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    function toast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove("show"), 2400);
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function clampInt(v, min, max, fallback) {
+      const n = parseInt(v, 10);
+      if (Number.isNaN(n)) return fallback;
+      return Math.min(max, Math.max(min, n));
+    }
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          state.groupNames = defaultNames(state.groupCount);
+          return;
+        }
+        const data = JSON.parse(raw);
+        if (data.groupCount) state.groupCount = data.groupCount;
+        if (data.menPerGroup != null) state.menPerGroup = data.menPerGroup;
+        if (data.womenPerGroup != null) state.womenPerGroup = data.womenPerGroup;
+        if (data.targetCount) state.targetCount = data.targetCount;
+        if (typeof data.drawDirection === "boolean") state.drawDirection = data.drawDirection;
+        if (Array.isArray(data.penalties) && data.penalties.length) state.penalties = data.penalties;
+        if (Array.isArray(data.groupNames) && data.groupNames.length) {
+          state.groupNames = data.groupNames;
+        } else {
+          state.groupNames = defaultNames(state.groupCount);
+        }
+        ensureNamesLength();
+      } catch (_) {
+        state.groupNames = defaultNames(state.groupCount);
+      }
+    }
+
+    function save() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        groupCount: state.groupCount,
+        menPerGroup: state.menPerGroup,
+        womenPerGroup: state.womenPerGroup,
+        targetCount: state.targetCount,
+        drawDirection: state.drawDirection,
+        groupNames: state.groupNames,
+        penalties: state.penalties,
+      }));
+    }
+
+    function ensureNamesLength() {
+      const n = state.groupCount;
+      while (state.groupNames.length < n) {
+        state.groupNames.push(`第 ${state.groupNames.length + 1} 組`);
+      }
+      if (state.groupNames.length > n) state.groupNames = state.groupNames.slice(0, n);
+    }
+
+    function setCardEl(el, card, tag) {
+      if (!card) {
+        el.className = "playing-card empty";
+        el.innerHTML = `<div class="rank">?</div><div class="suit">—</div><div class="card-tag">${tag}</div>`;
+        return;
+      }
+      el.className = `playing-card ${card.suit} reveal`;
+      el.innerHTML = `
+        <div class="rank">${escapeHtml(card.rank)}</div>
+        <div class="suit">${escapeHtml(card.symbol)}</div>
+        <div class="card-tag">${escapeHtml(tag)}</div>
+      `;
+    }
+
+    /* 順序：國王 → 處罰 → 受罰 */
+    function updateSteps() {
+      const r = state.round;
+      const cols = {
+        king: document.getElementById("col-king"),
+        penalty: document.getElementById("col-penalty"),
+        target: document.getElementById("col-target"),
+      };
+      Object.values(cols).forEach((c) => c.classList.remove("current", "done"));
+
+      if (!r.king) {
+        cols.king.classList.add("current");
+      } else if (!r.penalty) {
+        cols.king.classList.add("done");
+        cols.penalty.classList.add("current");
+      } else if (r.targets.length < state.targetCount) {
+        cols.king.classList.add("done");
+        cols.penalty.classList.add("done");
+        cols.target.classList.add("current");
+      } else {
+        cols.king.classList.add("done");
+        cols.penalty.classList.add("done");
+        cols.target.classList.add("done");
+      }
+    }
+
+    function updateButtons() {
+      const r = state.round;
+      document.getElementById("btn-king").disabled = busy || !!r.king;
+      document.getElementById("btn-penalty").disabled =
+        busy || !r.king || !!r.penalty || !state.penalties.length;
+      document.getElementById("btn-target").disabled =
+        busy || !r.penalty || r.targets.length >= state.targetCount;
+    }
+
+    function renderHeader() {
+      document.getElementById("group-summary").textContent = `${state.groupCount} 組`;
+      document.getElementById("deck-summary").textContent = String(buildDeck().length);
+      document.getElementById("penalty-count").textContent = String(state.penalties.length);
+    }
+
+    function renderTargetSlots() {
+      const wrap = document.getElementById("target-cards");
+      const count = state.targetCount;
+      wrap.className = `cards-row multi-${count}`;
+      let html = "";
+      for (let i = 0; i < count; i++) {
+        const card = state.round.targets[i];
+        const id = `target-card-${i + 1}`;
+        const tag = count > 1 ? `受罰 ${i + 1}` : "受罰";
+        if (card) {
+          html += `
+            <div class="playing-card ${card.suit} reveal" id="${id}">
+              <div class="rank">${escapeHtml(card.rank)}</div>
+              <div class="suit">${escapeHtml(card.symbol)}</div>
+              <div class="card-tag">${tag}</div>
+            </div>`;
+        } else {
+          html += `
+            <div class="playing-card empty" id="${id}">
+              <div class="rank">?</div>
+              <div class="suit">—</div>
+              <div class="card-tag">${tag}</div>
+            </div>`;
+        }
+      }
+      wrap.innerHTML = html;
+    }
+
+    function renderPenalties() {
+      const list = document.getElementById("penalty-list");
+      if (!state.penalties.length) {
+        list.innerHTML = `<li class="penalty-item"><span style="color:var(--text-dim);padding:0.35rem 0.2rem">尚無項目，請整批貼上</span></li>`;
+      } else {
+        list.innerHTML = state.penalties.map((p, i) => `
+          <li class="penalty-item">
+            <input type="text" data-edit-penalty="${i}" value="${escapeHtml(p)}" maxlength="120" />
+            <button type="button" class="danger" data-remove-penalty="${i}">刪</button>
+          </li>
+        `).join("");
+      }
+      renderHeader();
+      updateButtons();
+    }
+
+    function renderNameList() {
+      const el = document.getElementById("name-list");
+      ensureNamesLength();
+      el.innerHTML = state.groupNames.map((name, i) => `
+        <div class="name-row">
+          <span class="idx">${i + 1}</span>
+          <input type="text" data-name-index="${i}" value="${escapeHtml(name)}" maxlength="24" />
+        </div>
+      `).join("");
+    }
+
+    function syncSettingsInputs() {
+      document.getElementById("input-groups").value = state.groupCount;
+      document.getElementById("input-men").value = state.menPerGroup;
+      document.getElementById("input-women").value = state.womenPerGroup;
+      document.getElementById("input-targets").value = state.targetCount;
+      document.getElementById("input-direction").checked = state.drawDirection;
+      renderNameList();
+      syncDirectionUi();
+    }
+
+    function syncDirectionUi() {
+      const dirEl = document.getElementById("direction-display");
+      const btn = document.getElementById("btn-penalty");
+      const hint = document.getElementById("penalty-col-hint");
+      if (state.drawDirection) {
+        dirEl.classList.remove("hidden");
+        if (!state.round.direction) {
+          dirEl.textContent = "方向：男→女 或 女→男";
+          dirEl.classList.remove("reveal");
+        }
+        btn.textContent = "抽出處罰與方向";
+        hint.textContent = "可一併抽出男女方向（設定可關閉）";
+      } else {
+        dirEl.classList.add("hidden");
+        dirEl.textContent = "";
+        btn.textContent = "抽出處罰";
+        hint.textContent = "先有國王，再決定要做什麼";
+      }
+    }
+
+    function parseBulk(text) {
+      return text
+        .split(/\r?\n/)
+        .map((l) => l.replace(/^[\s\-•*\d.、）)]+/, "").trim())
+        .filter(Boolean);
+    }
+
+    function ensureRemaining() {
+      if (!state.round.remaining.length && !state.round.king) {
+        state.round.remaining = shuffle(buildDeck());
+      }
+    }
+
+    async function drawKing() {
+      if (busy || state.round.king) return;
+      busy = true;
+      updateButtons();
+      ensureRemaining();
+
+      const el = document.getElementById("king-card");
+      const duration = 1400;
+      const start = performance.now();
+      while (performance.now() - start < duration) {
+        const demo = pick(state.round.remaining.length ? state.round.remaining : buildDeck());
+        el.className = `playing-card ${demo.suit} rolling`;
+        el.innerHTML = `
+          <div class="rank">${escapeHtml(demo.rank)}</div>
+          <div class="suit">${escapeHtml(demo.symbol)}</div>
+          <div class="card-tag">國王</div>
+        `;
+        await sleep(70);
+      }
+
+      const card = state.round.remaining.pop();
+      state.round.king = card;
+      setCardEl(el, card, "國王");
+
+      busy = false;
+      updateSteps();
+      updateButtons();
+    }
+
+    async function drawPenalty() {
+      if (busy || !state.round.king || state.round.penalty) return;
+      if (!state.penalties.length) {
+        toast("請先在設定貼上處罰項目");
+        return;
+      }
+      busy = true;
+      updateButtons();
+
+      const display = document.getElementById("penalty-display");
+      const dirEl = document.getElementById("direction-display");
+      const useDir = state.drawDirection;
+      display.classList.add("rolling");
+      display.classList.remove("accent", "muted", "reveal");
+
+      const dirs = ["該組：男生 → 女生", "該組：女生 → 男生"];
+      const duration = 1400;
+      const start = performance.now();
+      while (performance.now() - start < duration) {
+        display.textContent = pick(state.penalties);
+        if (useDir) dirEl.textContent = pick(dirs);
+        await sleep(70);
+      }
+
+      state.round.penalty = pick(state.penalties);
+      state.round.direction = useDir ? pick(dirs) : null;
+
+      display.textContent = state.round.penalty;
+      display.classList.remove("rolling");
+      display.classList.add("accent", "reveal");
+      if (useDir) {
+        dirEl.classList.remove("hidden");
+        dirEl.textContent = state.round.direction;
+        dirEl.classList.add("reveal");
+      } else {
+        dirEl.classList.add("hidden");
+        dirEl.textContent = "";
+      }
+
+      busy = false;
+      updateSteps();
+      updateButtons();
+    }
+
+    async function drawTarget() {
+      if (busy || !state.round.penalty) return;
+      if (state.round.targets.length >= state.targetCount) return;
+      if (!state.round.remaining.length) {
+        toast("牌抽完了，請開新一輪");
+        return;
+      }
+
+      busy = true;
+      updateButtons();
+
+      const index = state.round.targets.length;
+      const el = document.getElementById(`target-card-${index + 1}`);
+      const tag = state.targetCount > 1 ? `受罰 ${index + 1}` : "受罰";
+
+      const duration = 1400;
+      const start = performance.now();
+      while (performance.now() - start < duration) {
+        const demo = pick(state.round.remaining);
+        el.className = `playing-card ${demo.suit} rolling`;
+        el.innerHTML = `
+          <div class="rank">${escapeHtml(demo.rank)}</div>
+          <div class="suit">${escapeHtml(demo.symbol)}</div>
+          <div class="card-tag">${tag}</div>
+        `;
+        await sleep(70);
+      }
+
+      const card = state.round.remaining.pop();
+      state.round.targets.push(card);
+      setCardEl(el, card, tag);
+
+      busy = false;
+      updateSteps();
+      updateButtons();
+    }
+
+    function resetRound() {
+      if (busy) return;
+      state.round = {
+        penalty: null,
+        direction: null,
+        king: null,
+        targets: [],
+        remaining: [],
+      };
+      const display = document.getElementById("penalty-display");
+      display.textContent = "尚未抽出";
+      display.className = "flow-value muted";
+      document.getElementById("direction-display").classList.remove("reveal");
+      syncDirectionUi();
+      setCardEl(document.getElementById("king-card"), null, "國王");
+      renderTargetSlots();
+      updateSteps();
+      updateButtons();
+    }
+
+    function applyGroupSettings() {
+      state.groupCount = clampInt(document.getElementById("input-groups").value, 2, 12, 5);
+      state.menPerGroup = clampInt(document.getElementById("input-men").value, 0, 20, 2);
+      state.womenPerGroup = clampInt(document.getElementById("input-women").value, 0, 30, 6);
+      state.targetCount = clampInt(document.getElementById("input-targets").value, 1, 3, 1);
+      ensureNamesLength();
+      save();
+      syncSettingsInputs();
+      renderHeader();
+      if (state.round.targets.length > state.targetCount) {
+        state.round.targets = state.round.targets.slice(0, state.targetCount);
+      }
+      renderTargetSlots();
+      updateButtons();
+      updateSteps();
+    }
+
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
+        document.body.style.overflow = tab.dataset.tab === "settings" ? "auto" : "hidden";
+      });
+    });
+
+    document.getElementById("btn-king").addEventListener("click", drawKing);
+    document.getElementById("btn-penalty").addEventListener("click", drawPenalty);
+    document.getElementById("btn-target").addEventListener("click", drawTarget);
+    document.getElementById("btn-reset").addEventListener("click", resetRound);
+
+    ["input-groups", "input-men", "input-women", "input-targets"].forEach((id) => {
+      document.getElementById(id).addEventListener("change", applyGroupSettings);
+    });
+
+    document.getElementById("input-direction").addEventListener("change", (e) => {
+      state.drawDirection = e.target.checked;
+      if (!state.drawDirection) state.round.direction = null;
+      save();
+      syncDirectionUi();
+    });
+
+    document.getElementById("name-list").addEventListener("change", (e) => {
+      const input = e.target.closest("[data-name-index]");
+      if (!input) return;
+      const i = Number(input.dataset.nameIndex);
+      const val = input.value.trim() || `第 ${i + 1} 組`;
+      state.groupNames[i] = val;
+      input.value = val;
+      save();
+    });
+
+    document.getElementById("penalty-list").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-penalty]");
+      if (!btn) return;
+      state.penalties.splice(Number(btn.dataset.removePenalty), 1);
+      save();
+      renderPenalties();
+    });
+
+    document.getElementById("penalty-list").addEventListener("change", (e) => {
+      const input = e.target.closest("[data-edit-penalty]");
+      if (!input) return;
+      const i = Number(input.dataset.editPenalty);
+      const val = input.value.trim();
+      if (!val) {
+        input.value = state.penalties[i];
+        toast("內容不能空白");
+        return;
+      }
+      state.penalties[i] = val;
+      input.value = val;
+      save();
+    });
+
+    document.getElementById("penalty-list").addEventListener("keydown", (e) => {
+      const input = e.target.closest("[data-edit-penalty]");
+      if (!input) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+
+    document.getElementById("bulk-replace").addEventListener("click", () => {
+      const items = parseBulk(document.getElementById("bulk-input").value);
+      if (!items.length) { toast("沒有讀到任何項目"); return; }
+      state.penalties = items;
+      save();
+      renderPenalties();
+      toast(`已取代為 ${items.length} 則處罰`);
+    });
+
+    document.getElementById("bulk-append").addEventListener("click", () => {
+      const items = parseBulk(document.getElementById("bulk-input").value);
+      if (!items.length) { toast("沒有讀到任何項目"); return; }
+      state.penalties.push(...items);
+      save();
+      renderPenalties();
+      toast(`已附加 ${items.length} 則`);
+    });
+
+    document.getElementById("bulk-clear").addEventListener("click", () => {
+      if (!state.penalties.length) return;
+      state.penalties = [];
+      save();
+      renderPenalties();
+      toast("已清空處罰清單");
+    });
+
+    load();
+    syncSettingsInputs();
+    renderPenalties();
+    renderHeader();
+    renderTargetSlots();
+    updateSteps();
+    updateButtons();
+  </script>
+</body>
+</html>
