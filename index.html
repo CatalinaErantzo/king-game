@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
-  <title>國王遊戲抽籤 v4</title>
+  <title>國王遊戲抽籤 v5</title>
   <style>
     :root {
       --bg: #0c0c0c;
@@ -260,10 +260,13 @@
 
     .cards-row {
       display: flex;
-      flex-wrap: nowrap;
-      gap: 0.7vw;
+      flex-wrap: wrap;
+      gap: 0.55vw;
       justify-content: center;
       align-items: center;
+      max-height: 42vh;
+      overflow-y: auto;
+      width: 100%;
     }
     .cards-row .playing-card {
       width: min(18vh, 9vw, 130px);
@@ -271,8 +274,18 @@
     }
     .cards-row.multi-2 .playing-card,
     .cards-row.multi-3 .playing-card {
-      width: min(15vh, 7.5vw, 110px);
-      height: min(21vh, 10.5vw, 155px);
+      width: min(14vh, 7vw, 105px);
+      height: min(20vh, 10vw, 150px);
+    }
+    .cards-row.multi-many .playing-card {
+      width: min(11vh, 5.5vw, 88px);
+      height: min(15.5vh, 7.8vw, 125px);
+    }
+    .cards-row.multi-many .playing-card .rank {
+      font-size: clamp(1.1rem, 2.6vh, 1.7rem);
+    }
+    .cards-row.multi-many .playing-card .suit {
+      font-size: clamp(1rem, 2.2vh, 1.4rem);
     }
 
     .penalty-box {
@@ -490,7 +503,7 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v4</span></h1>
+        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v5</span></h1>
         <p>持牌抽籤</p>
       </div>
       <div class="header-right">
@@ -556,7 +569,7 @@
               <button type="button" class="primary" id="btn-target" disabled>抽出受罰牌</button>
             </div>
           </div>
-          <p class="col-hint">拿到的人整組被罰（可罰到國王自己組）</p>
+          <p class="col-hint">可連抽多張＝1v1（拿到牌的人）；也可當整組受罰</p>
         </div>
       </div>
       <div class="footer-bar">
@@ -585,10 +598,6 @@
           <div class="field">
             <label>組名（可手動修改）</label>
             <div class="name-list" id="name-list"></div>
-          </div>
-          <div class="field">
-            <label for="input-targets">每輪受罰牌數</label>
-            <input type="number" id="input-targets" min="1" max="3" value="1" />
           </div>
           <label class="check-row">
             <input type="checkbox" id="input-direction" />
@@ -624,6 +633,7 @@
   <script>
     const STORAGE_KEY = "king-game-v4";
     const PENALTIES_VERSION = 4;
+    const MAX_TARGETS = 8;
 
     const SUITS = [
       { id: "spade", symbol: "♠" },
@@ -654,7 +664,6 @@
       menPerGroup: 2,
       womenPerGroup: 6,
       groupNames: [],
-      targetCount: 1,
       drawDirection: false,
       penalties: [...DEFAULT_PENALTIES],
       round: {
@@ -740,7 +749,6 @@
         if (data.groupCount) state.groupCount = data.groupCount;
         if (data.menPerGroup != null) state.menPerGroup = data.menPerGroup;
         if (data.womenPerGroup != null) state.womenPerGroup = data.womenPerGroup;
-        if (data.targetCount) state.targetCount = data.targetCount;
         if (typeof data.drawDirection === "boolean") state.drawDirection = data.drawDirection;
         if (Array.isArray(data.groupNames) && data.groupNames.length) {
           state.groupNames = data.groupNames;
@@ -768,7 +776,6 @@
         groupCount: state.groupCount,
         menPerGroup: state.menPerGroup,
         womenPerGroup: state.womenPerGroup,
-        targetCount: state.targetCount,
         drawDirection: state.drawDirection,
         groupNames: state.groupNames,
         penalties: state.penalties,
@@ -815,8 +822,8 @@
         cols.king.classList.add("current");
       } else {
         cols.king.classList.add("done");
-        if (r.targets.length >= state.targetCount) cols.target.classList.add("done");
-        else cols.target.classList.add("current");
+        cols.target.classList.add("current");
+        if (r.targets.length) cols.target.classList.add("done");
       }
     }
 
@@ -824,8 +831,13 @@
       const r = state.round;
       document.getElementById("btn-king").disabled = busy || !!r.king;
       document.getElementById("btn-penalty").disabled = busy || !state.penalties.length;
-      document.getElementById("btn-target").disabled =
-        busy || !r.king || r.targets.length >= state.targetCount;
+      const targetBtn = document.getElementById("btn-target");
+      targetBtn.disabled =
+        busy ||
+        !r.king ||
+        r.targets.length >= MAX_TARGETS ||
+        (r.king && r.remaining.length === 0 && r.targets.length > 0);
+      targetBtn.textContent = r.targets.length ? "再抽受罰牌" : "抽出受罰牌";
     }
 
     function renderHeader() {
@@ -836,30 +848,41 @@
       if (inline) inline.textContent = String(state.penalties.length);
     }
 
-    function renderTargetSlots() {
+    function renderTargetSlots(opts = {}) {
       const wrap = document.getElementById("target-cards");
-      const count = state.targetCount;
-      wrap.className = `cards-row multi-${count}`;
-      let html = "";
-      for (let i = 0; i < count; i++) {
-        const card = state.round.targets[i];
-        const id = `target-card-${i + 1}`;
-        const tag = count > 1 ? `受罰 ${i + 1}` : "受罰";
-        if (card) {
-          html += `
-            <div class="playing-card ${card.suit} reveal" id="${id}">
-              <div class="rank">${escapeHtml(card.rank)}</div>
-              <div class="suit">${escapeHtml(card.symbol)}</div>
-              <div class="card-tag">${tag}</div>
-            </div>`;
-        } else {
-          html += `
-            <div class="playing-card empty" id="${id}">
-              <div class="rank">?</div>
-              <div class="suit">—</div>
-              <div class="card-tag">${tag}</div>
-            </div>`;
-        }
+      const cards = state.round.targets;
+      const pending = !!opts.pending;
+      const total = cards.length + (pending ? 1 : 0);
+      const sizeClass =
+        total <= 1 ? "" : total === 2 ? "multi-2" : total === 3 ? "multi-3" : "multi-many";
+      wrap.className = `cards-row ${sizeClass}`.trim();
+
+      if (!cards.length && !pending) {
+        wrap.innerHTML = `
+          <div class="playing-card empty" id="target-card-1">
+            <div class="rank">?</div>
+            <div class="suit">—</div>
+            <div class="card-tag">受罰</div>
+          </div>`;
+        return;
+      }
+
+      let html = cards.map((card, i) => `
+        <div class="playing-card ${card.suit}" id="target-card-${i + 1}">
+          <div class="rank">${escapeHtml(card.rank)}</div>
+          <div class="suit">${escapeHtml(card.symbol)}</div>
+          <div class="card-tag">${cards.length > 1 || pending ? `受罰 ${i + 1}` : "受罰"}</div>
+        </div>
+      `).join("");
+
+      if (pending) {
+        const i = cards.length;
+        html += `
+          <div class="playing-card empty" id="target-card-${i + 1}">
+            <div class="rank">?</div>
+            <div class="suit">—</div>
+            <div class="card-tag">受罰 ${i + 1}</div>
+          </div>`;
       }
       wrap.innerHTML = html;
     }
@@ -895,7 +918,6 @@
       document.getElementById("input-groups").value = state.groupCount;
       document.getElementById("input-men").value = state.menPerGroup;
       document.getElementById("input-women").value = state.womenPerGroup;
-      document.getElementById("input-targets").value = state.targetCount;
       document.getElementById("input-direction").checked = state.drawDirection;
       renderNameList();
       syncDirectionUi();
@@ -1015,7 +1037,10 @@
 
     async function drawTarget() {
       if (busy || !state.round.king) return;
-      if (state.round.targets.length >= state.targetCount) return;
+      if (state.round.targets.length >= MAX_TARGETS) {
+        toast(`本輪最多 ${MAX_TARGETS} 張，請開新一輪`);
+        return;
+      }
       if (!state.round.remaining.length) {
         toast("牌抽完了，請開新一輪");
         return;
@@ -1025,8 +1050,9 @@
       updateButtons();
 
       const index = state.round.targets.length;
+      const tag = `受罰 ${index + 1}`;
+      renderTargetSlots({ pending: true });
       const el = document.getElementById(`target-card-${index + 1}`);
-      const tag = state.targetCount > 1 ? `受罰 ${index + 1}` : "受罰";
 
       const duration = 1400;
       const start = performance.now();
@@ -1043,7 +1069,9 @@
 
       const card = state.round.remaining.pop();
       state.round.targets.push(card);
-      setCardEl(el, card, tag);
+      renderTargetSlots();
+      const finalEl = document.getElementById(`target-card-${index + 1}`);
+      if (finalEl) finalEl.classList.add("reveal");
 
       busy = false;
       updateSteps();
@@ -1074,14 +1102,10 @@
       state.groupCount = clampInt(document.getElementById("input-groups").value, 2, 12, 5);
       state.menPerGroup = clampInt(document.getElementById("input-men").value, 0, 20, 2);
       state.womenPerGroup = clampInt(document.getElementById("input-women").value, 0, 30, 6);
-      state.targetCount = clampInt(document.getElementById("input-targets").value, 1, 3, 1);
       ensureNamesLength();
       save();
       syncSettingsInputs();
       renderHeader();
-      if (state.round.targets.length > state.targetCount) {
-        state.round.targets = state.round.targets.slice(0, state.targetCount);
-      }
       renderTargetSlots();
       updateButtons();
       updateSteps();
@@ -1102,7 +1126,7 @@
     document.getElementById("btn-target").addEventListener("click", drawTarget);
     document.getElementById("btn-reset").addEventListener("click", resetRound);
 
-    ["input-groups", "input-men", "input-women", "input-targets"].forEach((id) => {
+    ["input-groups", "input-men", "input-women"].forEach((id) => {
       document.getElementById(id).addEventListener("change", applyGroupSettings);
     });
 
