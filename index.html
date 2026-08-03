@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
-  <title>國王遊戲抽籤 v5</title>
+  <title>國王遊戲抽籤 v6</title>
   <style>
     :root {
       --bg: #0c0c0c;
@@ -468,6 +468,70 @@
     }
     .flow-sub.hidden { display: none; }
 
+    .mode-switch {
+      display: flex;
+      gap: 0.35rem;
+      margin-bottom: 1vh;
+      justify-content: center;
+    }
+    .mode-btn {
+      padding: 0.35rem 0.75rem;
+      font-size: 0.88em;
+      border-radius: 999px;
+      color: var(--text-muted);
+      background: var(--bg);
+    }
+    .mode-btn.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: var(--accent-border);
+    }
+
+    .king-group-display {
+      font-size: clamp(1.6rem, 4.5vh, 2.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      min-height: min(31vh, 15.5vw, 225px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0.5rem;
+      line-height: 1.2;
+    }
+    .king-group-display.hidden,
+    .playing-card.hidden { display: none; }
+    .king-group-display.rolling {
+      animation: pulse 0.16s ease-in-out infinite alternate;
+      color: var(--text-dim);
+    }
+
+    .chip-toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .chip-toggle {
+      padding: 0.4rem 0.7rem;
+      font-size: 0.92em;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      min-width: 2.4rem;
+    }
+    .chip-toggle.on {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: var(--accent-border);
+    }
+    .chip-toggle:not(.on) {
+      opacity: 0.45;
+      text-decoration: line-through;
+    }
+
     .toast {
       position: fixed;
       bottom: 2vh;
@@ -503,7 +567,7 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v5</span></h1>
+        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v6</span></h1>
         <p>持牌抽籤</p>
       </div>
       <div class="header-right">
@@ -522,18 +586,23 @@
         <!-- 1. 國王 -->
         <div class="col current" id="col-king" data-col="king">
           <div class="col-step">步驟 1</div>
-          <div class="col-title">國王牌</div>
+          <div class="col-title" id="king-col-title">國王</div>
           <div class="col-body">
+            <div class="mode-switch" id="king-mode-switch">
+              <button type="button" class="mode-btn active" data-king-mode="card">抽牌</button>
+              <button type="button" class="mode-btn" data-king-mode="group">抽組別</button>
+            </div>
             <div class="playing-card empty" id="king-card">
               <div class="rank">?</div>
               <div class="suit">—</div>
               <div class="card-tag">國王</div>
             </div>
+            <div class="king-group-display hidden" id="king-group">—</div>
             <div class="actions">
               <button type="button" class="primary" id="btn-king">抽出國王牌</button>
             </div>
           </div>
-          <p class="col-hint">拿到這張的人當國王</p>
+          <p class="col-hint" id="king-col-hint">抽牌：拿到這張的人當國王 · 抽組別：整組當國王</p>
         </div>
 
         <!-- 2. 處罰 -->
@@ -606,7 +675,16 @@
               <small>選用時才抽「男生→女生／女生→男生」；不勾選則只抽處罰內容</small>
             </span>
           </label>
-          <p class="settings-note">預設 40 張：A–10 × 四花色。同輪抽牌不放回。</p>
+
+          <div class="field" style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.85rem">
+            <label>牌組花色（亮＝使用，暗＝排除）</label>
+            <div class="chip-toggles" id="suit-toggles"></div>
+          </div>
+          <div class="field">
+            <label>牌組點數（亮＝使用，暗＝排除）</label>
+            <div class="chip-toggles" id="rank-toggles"></div>
+          </div>
+          <p class="settings-note" id="deck-note">預設 A–10 × 四花色（40 張）。可排除花色／點數以配合人數；同輪抽牌不放回。</p>
         </div>
 
         <div class="card">
@@ -631,7 +709,7 @@
   <div class="toast" id="toast" role="status"></div>
 
   <script>
-    const STORAGE_KEY = "king-game-v4";
+    const STORAGE_KEY = "king-game-v6";
     const PENALTIES_VERSION = 4;
     const MAX_TARGETS = 8;
 
@@ -641,7 +719,8 @@
       { id: "diamond", symbol: "♦" },
       { id: "club", symbol: "♣" },
     ];
-    const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+    const RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+    const DEFAULT_RANKS = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
     const DEFAULT_PENALTIES = [
       "同組所有人跟被抽到的鬼嘴對嘴親一下",
@@ -665,13 +744,17 @@
       womenPerGroup: 6,
       groupNames: [],
       drawDirection: false,
+      kingMode: "card", // card | group
+      enabledSuits: SUITS.map((s) => s.id),
+      enabledRanks: [...DEFAULT_RANKS],
       penalties: [...DEFAULT_PENALTIES],
       round: {
         penalty: null,
         direction: null,
-        king: null,
+        king: null, // { kind:'card', ...card } | { kind:'group', index, name }
         targets: [],
         remaining: [],
+        deckReady: false,
       },
     };
 
@@ -682,13 +765,22 @@
     }
 
     function buildDeck() {
+      const suitSet = new Set(state.enabledSuits);
+      const rankSet = new Set(state.enabledRanks);
       const deck = [];
       for (const suit of SUITS) {
+        if (!suitSet.has(suit.id)) continue;
         for (const rank of RANKS) {
+          if (!rankSet.has(rank)) continue;
           deck.push({ suit: suit.id, symbol: suit.symbol, rank, label: `${suit.symbol}${rank}` });
         }
       }
       return deck;
+    }
+
+    function groupLabel(i) {
+      ensureNamesLength();
+      return state.groupNames[i] || `第 ${i + 1} 組`;
     }
 
     function shuffle(arr) {
@@ -737,6 +829,7 @@
           localStorage.removeItem("king-game-v1");
           localStorage.removeItem("king-game-v2");
           localStorage.removeItem("king-game-v3");
+          localStorage.removeItem("king-game-v4");
         } catch (_) { /* ignore */ }
 
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -750,6 +843,15 @@
         if (data.menPerGroup != null) state.menPerGroup = data.menPerGroup;
         if (data.womenPerGroup != null) state.womenPerGroup = data.womenPerGroup;
         if (typeof data.drawDirection === "boolean") state.drawDirection = data.drawDirection;
+        if (data.kingMode === "card" || data.kingMode === "group") state.kingMode = data.kingMode;
+        if (Array.isArray(data.enabledSuits) && data.enabledSuits.length) {
+          state.enabledSuits = data.enabledSuits.filter((id) => SUITS.some((s) => s.id === id));
+        }
+        if (Array.isArray(data.enabledRanks) && data.enabledRanks.length) {
+          state.enabledRanks = data.enabledRanks.filter((r) => RANKS.includes(r));
+        }
+        if (!state.enabledSuits.length) state.enabledSuits = SUITS.map((s) => s.id);
+        if (!state.enabledRanks.length) state.enabledRanks = [...DEFAULT_RANKS];
         if (Array.isArray(data.groupNames) && data.groupNames.length) {
           state.groupNames = data.groupNames;
         } else {
@@ -777,6 +879,9 @@
         menPerGroup: state.menPerGroup,
         womenPerGroup: state.womenPerGroup,
         drawDirection: state.drawDirection,
+        kingMode: state.kingMode,
+        enabledSuits: state.enabledSuits,
+        enabledRanks: state.enabledRanks,
         groupNames: state.groupNames,
         penalties: state.penalties,
         penaltiesVersion: PENALTIES_VERSION,
@@ -803,6 +908,63 @@
         <div class="suit">${escapeHtml(card.symbol)}</div>
         <div class="card-tag">${escapeHtml(tag)}</div>
       `;
+    }
+
+    function clearKingVisual() {
+      const cardEl = document.getElementById("king-card");
+      const groupEl = document.getElementById("king-group");
+      if (state.kingMode === "group") {
+        cardEl.classList.add("hidden");
+        groupEl.classList.remove("hidden");
+        groupEl.classList.remove("rolling", "reveal");
+        groupEl.textContent = "—";
+        groupEl.style.color = "";
+      } else {
+        groupEl.classList.add("hidden");
+        cardEl.classList.remove("hidden");
+        setCardEl(cardEl, null, "國王");
+      }
+    }
+
+    function syncKingModeUi() {
+      document.querySelectorAll("[data-king-mode]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.kingMode === state.kingMode);
+      });
+      const title = document.getElementById("king-col-title");
+      const hint = document.getElementById("king-col-hint");
+      const btn = document.getElementById("btn-king");
+      if (state.kingMode === "group") {
+        title.textContent = "國王組";
+        hint.textContent = "抽出的組別整組當國王";
+        btn.textContent = state.round.king ? "已抽出國王組" : "抽出國王組";
+      } else {
+        title.textContent = "國王牌";
+        hint.textContent = "拿到這張的人當國王";
+        btn.textContent = state.round.king ? "已抽出國王牌" : "抽出國王牌";
+      }
+      if (!state.round.king) clearKingVisual();
+      else renderKingResult();
+    }
+
+    function renderKingResult() {
+      const king = state.round.king;
+      const cardEl = document.getElementById("king-card");
+      const groupEl = document.getElementById("king-group");
+      if (!king) {
+        clearKingVisual();
+        return;
+      }
+      if (king.kind === "group") {
+        cardEl.classList.add("hidden");
+        groupEl.classList.remove("hidden", "rolling");
+        groupEl.classList.add("reveal");
+        groupEl.textContent = king.name;
+        groupEl.style.color = "var(--accent)";
+      } else {
+        groupEl.classList.add("hidden");
+        cardEl.classList.remove("hidden");
+        setCardEl(cardEl, king, "國王");
+      }
     }
 
     /* 國王／受罰依序；處罰可獨立隨時抽（含重抽） */
@@ -846,6 +1008,29 @@
       document.getElementById("penalty-count").textContent = String(state.penalties.length);
       const inline = document.getElementById("penalty-count-inline");
       if (inline) inline.textContent = String(state.penalties.length);
+      const note = document.getElementById("deck-note");
+      if (note) {
+        const n = buildDeck().length;
+        note.textContent = `目前牌組 ${n} 張（亮＝使用、暗＝排除）。可排除花色／點數以配合人數；同輪抽牌不放回。`;
+      }
+    }
+
+    function renderDeckToggles() {
+      const suitEl = document.getElementById("suit-toggles");
+      const rankEl = document.getElementById("rank-toggles");
+      if (!suitEl || !rankEl) return;
+      const suitOn = new Set(state.enabledSuits);
+      const rankOn = new Set(state.enabledRanks);
+      suitEl.innerHTML = SUITS.map((s) => `
+        <button type="button" class="chip-toggle ${suitOn.has(s.id) ? "on" : ""}" data-toggle-suit="${s.id}">
+          ${s.symbol}
+        </button>
+      `).join("");
+      rankEl.innerHTML = RANKS.map((r) => `
+        <button type="button" class="chip-toggle ${rankOn.has(r) ? "on" : ""}" data-toggle-rank="${r}">
+          ${r}
+        </button>
+      `).join("");
     }
 
     function renderTargetSlots(opts = {}) {
@@ -920,7 +1105,9 @@
       document.getElementById("input-women").value = state.womenPerGroup;
       document.getElementById("input-direction").checked = state.drawDirection;
       renderNameList();
+      renderDeckToggles();
       syncDirectionUi();
+      syncKingModeUi();
     }
 
     function syncDirectionUi() {
@@ -953,22 +1140,73 @@
     }
 
     function ensureRemaining() {
-      if (!state.round.remaining.length && !state.round.king) {
-        state.round.remaining = shuffle(buildDeck());
-      }
+      if (state.round.deckReady) return;
+      state.round.remaining = shuffle(buildDeck());
+      state.round.deckReady = true;
     }
 
     async function drawKing() {
       if (busy || state.round.king) return;
+
+      if (state.kingMode === "group") {
+        busy = true;
+        updateButtons();
+        ensureRemaining(); // 仍洗牌，供之後抽受罰牌
+
+        const groupEl = document.getElementById("king-group");
+        const cardEl = document.getElementById("king-card");
+        cardEl.classList.add("hidden");
+        groupEl.classList.remove("hidden");
+        groupEl.classList.add("rolling");
+        groupEl.style.color = "";
+
+        const duration = 1400;
+        const start = performance.now();
+        while (performance.now() - start < duration) {
+          const i = Math.floor(Math.random() * state.groupCount);
+          groupEl.textContent = groupLabel(i);
+          await sleep(70);
+        }
+
+        const index = Math.floor(Math.random() * state.groupCount);
+        const name = groupLabel(index);
+        state.round.king = { kind: "group", index: index + 1, name };
+        groupEl.classList.remove("rolling");
+        groupEl.classList.add("reveal");
+        groupEl.textContent = name;
+        groupEl.style.color = "var(--accent)";
+
+        busy = false;
+        syncKingModeUi();
+        updateSteps();
+        updateButtons();
+        return;
+      }
+
+      const deck = buildDeck();
+      if (!deck.length) {
+        toast("牌組是空的，請在設定啟用至少一張牌");
+        return;
+      }
+
       busy = true;
       updateButtons();
       ensureRemaining();
+      if (!state.round.remaining.length) {
+        busy = false;
+        updateButtons();
+        toast("牌組是空的，請在設定啟用至少一張牌");
+        return;
+      }
 
       const el = document.getElementById("king-card");
+      document.getElementById("king-group").classList.add("hidden");
+      el.classList.remove("hidden");
+
       const duration = 1400;
       const start = performance.now();
       while (performance.now() - start < duration) {
-        const demo = pick(state.round.remaining.length ? state.round.remaining : buildDeck());
+        const demo = pick(state.round.remaining.length ? state.round.remaining : deck);
         el.className = `playing-card ${demo.suit} rolling`;
         el.innerHTML = `
           <div class="rank">${escapeHtml(demo.rank)}</div>
@@ -979,10 +1217,11 @@
       }
 
       const card = state.round.remaining.pop();
-      state.round.king = card;
+      state.round.king = { kind: "card", ...card };
       setCardEl(el, card, "國王");
 
       busy = false;
+      syncKingModeUi();
       updateSteps();
       updateButtons();
     }
@@ -1041,8 +1280,9 @@
         toast(`本輪最多 ${MAX_TARGETS} 張，請開新一輪`);
         return;
       }
+      ensureRemaining();
       if (!state.round.remaining.length) {
-        toast("牌抽完了，請開新一輪");
+        toast("牌組是空的或已抽完，請調整設定或開新一輪");
         return;
       }
 
@@ -1086,13 +1326,15 @@
         king: null,
         targets: [],
         remaining: [],
+        deckReady: false,
       };
       const display = document.getElementById("penalty-display");
       display.textContent = "尚未抽出";
       display.className = "flow-value muted";
       document.getElementById("direction-display").classList.remove("reveal");
       syncDirectionUi();
-      setCardEl(document.getElementById("king-card"), null, "國王");
+      clearKingVisual();
+      syncKingModeUi();
       renderTargetSlots();
       updateSteps();
       updateButtons();
@@ -1135,6 +1377,62 @@
       if (!state.drawDirection) state.round.direction = null;
       save();
       syncDirectionUi();
+    });
+
+    document.getElementById("king-mode-switch").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-king-mode]");
+      if (!btn || busy) return;
+      const mode = btn.dataset.kingMode;
+      if (mode !== "card" && mode !== "group") return;
+      if (state.round.king) {
+        toast("本輪已抽出國王，請先「開新一輪」再切換");
+        return;
+      }
+      state.kingMode = mode;
+      save();
+      syncKingModeUi();
+    });
+
+    document.getElementById("suit-toggles").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-toggle-suit]");
+      if (!btn) return;
+      if (state.round.deckReady) {
+        toast("本輪已開始抽牌，請先「開新一輪」再改牌組");
+        return;
+      }
+      const id = btn.dataset.toggleSuit;
+      const set = new Set(state.enabledSuits);
+      if (set.has(id)) {
+        if (set.size <= 1) { toast("至少保留一種花色"); return; }
+        set.delete(id);
+      } else {
+        set.add(id);
+      }
+      state.enabledSuits = SUITS.map((s) => s.id).filter((x) => set.has(x));
+      save();
+      renderDeckToggles();
+      renderHeader();
+    });
+
+    document.getElementById("rank-toggles").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-toggle-rank]");
+      if (!btn) return;
+      if (state.round.deckReady) {
+        toast("本輪已開始抽牌，請先「開新一輪」再改牌組");
+        return;
+      }
+      const rank = btn.dataset.toggleRank;
+      const set = new Set(state.enabledRanks);
+      if (set.has(rank)) {
+        if (set.size <= 1) { toast("至少保留一個點數"); return; }
+        set.delete(rank);
+      } else {
+        set.add(rank);
+      }
+      state.enabledRanks = RANKS.filter((r) => set.has(r));
+      save();
+      renderDeckToggles();
+      renderHeader();
     });
 
     document.getElementById("name-list").addEventListener("change", (e) => {
@@ -1219,6 +1517,7 @@
     renderPenalties();
     renderHeader();
     renderTargetSlots();
+    syncKingModeUi();
     updateSteps();
     updateButtons();
   </script>
