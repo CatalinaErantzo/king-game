@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
-  <title>國王遊戲抽籤 v6</title>
+  <title>國王遊戲抽籤 v7</title>
   <style>
     :root {
       --bg: #0c0c0c;
@@ -532,6 +532,38 @@
       text-decoration: line-through;
     }
 
+    .target-group-chip {
+      min-width: min(18vh, 12vw, 140px);
+      padding: 1.4vh 1.1vw;
+      border-radius: 10px;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: clamp(1.05rem, 2.8vh, 1.7rem);
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.25;
+    }
+    .target-group-chip .chip-tag {
+      display: block;
+      margin-top: 0.35em;
+      font-size: 0.7em;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+    .target-group-chip.empty {
+      border-style: dashed;
+      border-color: var(--border);
+      background: transparent;
+      color: var(--text-dim);
+    }
+    .target-group-chip.rolling {
+      animation: pulse 0.16s ease-in-out infinite alternate;
+      color: var(--text-dim);
+      border-color: var(--border-strong);
+      background: var(--bg);
+    }
+
     .toast {
       position: fixed;
       bottom: 2vh;
@@ -567,7 +599,7 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v6</span></h1>
+        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v7</span></h1>
         <p>持牌抽籤</p>
       </div>
       <div class="header-right">
@@ -589,8 +621,8 @@
           <div class="col-title" id="king-col-title">國王</div>
           <div class="col-body">
             <div class="mode-switch" id="king-mode-switch">
-              <button type="button" class="mode-btn active" data-king-mode="card">抽牌</button>
-              <button type="button" class="mode-btn" data-king-mode="group">抽組別</button>
+              <button type="button" class="mode-btn active" data-king-mode="card">抽牌模式</button>
+              <button type="button" class="mode-btn" data-king-mode="group">抽組別模式</button>
             </div>
             <div class="playing-card empty" id="king-card">
               <div class="rank">?</div>
@@ -625,7 +657,7 @@
         <!-- 3. 受罰 -->
         <div class="col" id="col-target" data-col="target">
           <div class="col-step">步驟 3</div>
-          <div class="col-title">受罰牌</div>
+          <div class="col-title" id="target-col-title">受罰牌</div>
           <div class="col-body">
             <div class="cards-row" id="target-cards">
               <div class="playing-card empty" id="target-card-1">
@@ -638,7 +670,7 @@
               <button type="button" class="primary" id="btn-target" disabled>抽出受罰牌</button>
             </div>
           </div>
-          <p class="col-hint">可連抽多張＝1v1（拿到牌的人）；也可當整組受罰</p>
+          <p class="col-hint" id="target-col-hint">抽牌模式可連抽多張＝1v1；抽組別模式則抽受罰組</p>
         </div>
       </div>
       <div class="footer-bar">
@@ -933,17 +965,29 @@
       const title = document.getElementById("king-col-title");
       const hint = document.getElementById("king-col-hint");
       const btn = document.getElementById("btn-king");
+      const tTitle = document.getElementById("target-col-title");
+      const tHint = document.getElementById("target-col-hint");
+      const tBtn = document.getElementById("btn-target");
+
       if (state.kingMode === "group") {
         title.textContent = "國王組";
         hint.textContent = "抽出的組別整組當國王";
         btn.textContent = state.round.king ? "已抽出國王組" : "抽出國王組";
+        tTitle.textContent = "受罰組";
+        tHint.textContent = "抽組別模式：連抽多組當受罰對象（可含國王自己組）";
+        tBtn.textContent = state.round.targets.length ? "再抽受罰組" : "抽出受罰組";
       } else {
         title.textContent = "國王牌";
         hint.textContent = "拿到這張的人當國王";
         btn.textContent = state.round.king ? "已抽出國王牌" : "抽出國王牌";
+        tTitle.textContent = "受罰牌";
+        tHint.textContent = "抽牌模式可連抽多張＝1v1（拿到牌的人）";
+        tBtn.textContent = state.round.targets.length ? "再抽受罰牌" : "抽出受罰牌";
       }
       if (!state.round.king) clearKingVisual();
       else renderKingResult();
+      renderTargetSlots();
+      updateButtons();
     }
 
     function renderKingResult() {
@@ -989,17 +1033,38 @@
       }
     }
 
+    function availableTargetGroups() {
+      const used = new Set(
+        state.round.targets.filter((t) => t.kind === "group").map((t) => t.index)
+      );
+      const pool = [];
+      for (let i = 1; i <= state.groupCount; i++) {
+        if (!used.has(i)) pool.push(i);
+      }
+      return pool;
+    }
+
     function updateButtons() {
       const r = state.round;
       document.getElementById("btn-king").disabled = busy || !!r.king;
       document.getElementById("btn-penalty").disabled = busy || !state.penalties.length;
       const targetBtn = document.getElementById("btn-target");
-      targetBtn.disabled =
-        busy ||
-        !r.king ||
-        r.targets.length >= MAX_TARGETS ||
-        (r.king && r.remaining.length === 0 && r.targets.length > 0);
-      targetBtn.textContent = r.targets.length ? "再抽受罰牌" : "抽出受罰牌";
+      if (state.kingMode === "group") {
+        const pool = availableTargetGroups();
+        targetBtn.disabled =
+          busy ||
+          !r.king ||
+          r.targets.length >= MAX_TARGETS ||
+          pool.length === 0;
+        targetBtn.textContent = r.targets.length ? "再抽受罰組" : "抽出受罰組";
+      } else {
+        targetBtn.disabled =
+          busy ||
+          !r.king ||
+          r.targets.length >= MAX_TARGETS ||
+          (r.king && r.remaining.length === 0 && r.targets.length > 0);
+        targetBtn.textContent = r.targets.length ? "再抽受罰牌" : "抽出受罰牌";
+      }
     }
 
     function renderHeader() {
@@ -1035,14 +1100,39 @@
 
     function renderTargetSlots(opts = {}) {
       const wrap = document.getElementById("target-cards");
-      const cards = state.round.targets;
+      const items = state.round.targets;
       const pending = !!opts.pending;
-      const total = cards.length + (pending ? 1 : 0);
+      const total = items.length + (pending ? 1 : 0);
       const sizeClass =
         total <= 1 ? "" : total === 2 ? "multi-2" : total === 3 ? "multi-3" : "multi-many";
       wrap.className = `cards-row ${sizeClass}`.trim();
 
-      if (!cards.length && !pending) {
+      if (state.kingMode === "group") {
+        if (!items.length && !pending) {
+          wrap.innerHTML = `
+            <div class="target-group-chip empty" id="target-card-1">
+              —<span class="chip-tag">受罰組</span>
+            </div>`;
+          return;
+        }
+        let html = items.map((g, i) => `
+          <div class="target-group-chip reveal" id="target-card-${i + 1}">
+            ${escapeHtml(g.name)}
+            <span class="chip-tag">${items.length > 1 || pending ? `受罰組 ${i + 1}` : "受罰組"}</span>
+          </div>
+        `).join("");
+        if (pending) {
+          const i = items.length;
+          html += `
+            <div class="target-group-chip empty" id="target-card-${i + 1}">
+              —<span class="chip-tag">受罰組 ${i + 1}</span>
+            </div>`;
+        }
+        wrap.innerHTML = html;
+        return;
+      }
+
+      if (!items.length && !pending) {
         wrap.innerHTML = `
           <div class="playing-card empty" id="target-card-1">
             <div class="rank">?</div>
@@ -1052,16 +1142,16 @@
         return;
       }
 
-      let html = cards.map((card, i) => `
+      let html = items.map((card, i) => `
         <div class="playing-card ${card.suit}" id="target-card-${i + 1}">
           <div class="rank">${escapeHtml(card.rank)}</div>
           <div class="suit">${escapeHtml(card.symbol)}</div>
-          <div class="card-tag">${cards.length > 1 || pending ? `受罰 ${i + 1}` : "受罰"}</div>
+          <div class="card-tag">${items.length > 1 || pending ? `受罰 ${i + 1}` : "受罰"}</div>
         </div>
       `).join("");
 
       if (pending) {
-        const i = cards.length;
+        const i = items.length;
         html += `
           <div class="playing-card empty" id="target-card-${i + 1}">
             <div class="rank">?</div>
@@ -1151,7 +1241,6 @@
       if (state.kingMode === "group") {
         busy = true;
         updateButtons();
-        ensureRemaining(); // 仍洗牌，供之後抽受罰牌
 
         const groupEl = document.getElementById("king-group");
         const cardEl = document.getElementById("king-card");
@@ -1277,9 +1366,47 @@
     async function drawTarget() {
       if (busy || !state.round.king) return;
       if (state.round.targets.length >= MAX_TARGETS) {
-        toast(`本輪最多 ${MAX_TARGETS} 張，請開新一輪`);
+        toast(`本輪最多 ${MAX_TARGETS} 個，請開新一輪`);
         return;
       }
+
+      if (state.kingMode === "group") {
+        const pool = availableTargetGroups();
+        if (!pool.length) {
+          toast("組別都抽過了，請開新一輪");
+          return;
+        }
+
+        busy = true;
+        updateButtons();
+
+        const index = state.round.targets.length;
+        const tag = `受罰組 ${index + 1}`;
+        renderTargetSlots({ pending: true });
+        const el = document.getElementById(`target-card-${index + 1}`);
+
+        const duration = 1400;
+        const start = performance.now();
+        while (performance.now() - start < duration) {
+          const demoIdx = pick(pool);
+          el.className = "target-group-chip rolling";
+          el.innerHTML = `${escapeHtml(groupLabel(demoIdx - 1))}<span class="chip-tag">${tag}</span>`;
+          await sleep(70);
+        }
+
+        const chosen = pick(pool);
+        const name = groupLabel(chosen - 1);
+        state.round.targets.push({ kind: "group", index: chosen, name });
+        renderTargetSlots();
+        const finalEl = document.getElementById(`target-card-${index + 1}`);
+        if (finalEl) finalEl.classList.add("reveal");
+
+        busy = false;
+        updateSteps();
+        updateButtons();
+        return;
+      }
+
       ensureRemaining();
       if (!state.round.remaining.length) {
         toast("牌組是空的或已抽完，請調整設定或開新一輪");
@@ -1308,7 +1435,7 @@
       }
 
       const card = state.round.remaining.pop();
-      state.round.targets.push(card);
+      state.round.targets.push({ kind: "card", ...card });
       renderTargetSlots();
       const finalEl = document.getElementById(`target-card-${index + 1}`);
       if (finalEl) finalEl.classList.add("reveal");
@@ -1386,6 +1513,10 @@
       if (mode !== "card" && mode !== "group") return;
       if (state.round.king) {
         toast("本輪已抽出國王，請先「開新一輪」再切換");
+        return;
+      }
+      if (state.round.targets.length) {
+        toast("本輪已有受罰結果，請先「開新一輪」再切換");
         return;
       }
       state.kingMode = mode;
