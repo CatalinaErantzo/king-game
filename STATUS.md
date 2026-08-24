@@ -23,4 +23,6 @@
 - 本輪已開始抽牌後需「開新一輪」才能改牌組
 
 ## 技術
-- `index.html` 單檔；低彩度投影向；GitHub Pages：https://catalinaerantzo.github.io/king-game/
+- `index.html` 單檔核心邏輯；另含 PWA：`manifest.webmanifest`、`sw.js`、`icons/`
+- 低彩度投影向；GitHub Pages：https://catalinaerantzo.github.io/king-game/
+- **加到主畫面**：iPhone Safari「分享 → 加入主畫面」；Android 瀏覽器「安裝／加到主畫面」
