@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="./icons/icon-512.png" />
-  <title>國王遊戲抽籤 v8</title>
+  <title>國王遊戲抽籤 v9</title>
   <style>
     :root {
       --bg: #0c0c0c;
@@ -623,17 +623,91 @@
       background: transparent;
     }
 
-    @media (max-aspect-ratio: 4/3) {
-      html, body { overflow: auto; }
-      .app { height: auto; min-height: 100%; }
+    .step-nav {
+      display: none;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+      flex-shrink: 0;
+    }
+    .step-nav-btn {
+      flex: 1;
+      padding: 0.55rem 0.4rem;
+      font-size: 0.9em;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .step-nav-btn.active {
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-color: var(--accent-border);
+    }
+    .step-nav-btn.done {
+      color: var(--success);
+      border-color: rgba(125, 186, 138, 0.35);
+    }
+
+    /* 直式／窄螢幕：可捲動 + 一次只顯示一個步驟 */
+    @media (max-width: 900px), (max-aspect-ratio: 4/3) {
+      html, body {
+        overflow: auto;
+        height: auto;
+        min-height: 100%;
+        -webkit-overflow-scrolling: touch;
+      }
+      .app {
+        height: auto;
+        min-height: 100dvh;
+        padding-bottom: max(1.4vh, env(safe-area-inset-bottom, 0px));
+      }
+      .panel {
+        overflow: visible;
+        flex: none;
+      }
+      .panel.active {
+        display: flex;
+        flex-direction: column;
+      }
+      #panel-play {
+        min-height: 0;
+      }
+      .step-nav { display: flex; }
       .board {
         grid-template-columns: 1fr;
-        gap: 0.75rem;
+        flex: none;
+        min-height: auto;
+      }
+      .board .col {
+        display: none;
+        min-height: min(62vh, 520px);
+      }
+      .board .col.mobile-active {
+        display: flex;
       }
       .playing-card {
-        width: 120px;
-        height: 170px;
+        width: min(42vw, 150px);
+        height: min(60vw, 210px);
       }
+      header.app-header {
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .header-meta {
+        order: 3;
+        width: 100%;
+        text-align: left;
+        margin-top: 0.25rem;
+      }
+      .col-hint { margin-top: 1rem; }
+      .footer-bar { padding-bottom: 1rem; }
+    }
+
+    /* 橫式大螢幕／電視：維持三欄同屏 */
+    @media (min-width: 901px) and (min-aspect-ratio: 4/3) {
+      .step-nav { display: none !important; }
+      .board .col { display: flex !important; }
     }
   </style>
 </head>
@@ -641,7 +715,7 @@
   <div class="app">
     <header class="app-header">
       <div class="brand">
-        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v8</span></h1>
+        <h1>國王遊戲 <span style="font-size:0.45em;color:var(--text-muted);font-weight:500;vertical-align:middle">v9</span></h1>
         <p>持牌抽籤 · 可加到主畫面</p>
       </div>
       <div class="header-right">
@@ -669,7 +743,12 @@
     </div>
 
     <section id="panel-play" class="panel active">
-      <div class="board">
+      <nav class="step-nav" id="step-nav" aria-label="步驟切換">
+        <button type="button" class="step-nav-btn active" data-mobile-step="king">1 國王</button>
+        <button type="button" class="step-nav-btn" data-mobile-step="penalty">2 處罰</button>
+        <button type="button" class="step-nav-btn" data-mobile-step="target">3 受罰</button>
+      </nav>
+      <div class="board" id="board">
         <!-- 1. 國王 -->
         <div class="col current" id="col-king" data-col="king">
           <div class="col-step">步驟 1</div>
@@ -1067,6 +1146,25 @@
     }
 
     /* 國王／受罰依序；處罰可獨立隨時抽（含重抽） */
+    let mobileStep = "king";
+
+    function setMobileStep(step, opts = {}) {
+      if (!["king", "penalty", "target"].includes(step)) return;
+      mobileStep = step;
+      document.querySelectorAll(".board .col").forEach((col) => {
+        col.classList.toggle("mobile-active", col.dataset.col === step);
+      });
+      document.querySelectorAll("[data-mobile-step]").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.mobileStep === step);
+      });
+      if (opts.scroll !== false) {
+        const play = document.getElementById("panel-play");
+        if (play && window.matchMedia("(max-width: 900px), (max-aspect-ratio: 4/3)").matches) {
+          play.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }
+    }
+
     function updateSteps() {
       const r = state.round;
       const cols = {
@@ -1085,6 +1183,23 @@
         cols.king.classList.add("done");
         cols.target.classList.add("current");
         if (r.targets.length) cols.target.classList.add("done");
+      }
+
+      document.querySelectorAll("[data-mobile-step]").forEach((btn) => {
+        const step = btn.dataset.mobileStep;
+        btn.classList.toggle("done",
+          (step === "king" && !!r.king) ||
+          (step === "penalty" && !!r.penalty) ||
+          (step === "target" && r.targets.length > 0)
+        );
+      });
+
+      // 保持目前手動選的步驟；若尚未選過則跟進度
+      if (!document.querySelector(".board .col.mobile-active")) {
+        const focus = !r.king ? "king" : (!r.penalty && !r.targets.length ? "penalty" : "target");
+        setMobileStep(focus, { scroll: false });
+      } else {
+        setMobileStep(mobileStep, { scroll: false });
       }
     }
 
@@ -1324,6 +1439,7 @@
         syncKingModeUi();
         updateSteps();
         updateButtons();
+        setMobileStep("target");
         return;
       }
 
@@ -1368,6 +1484,7 @@
       syncKingModeUi();
       updateSteps();
       updateButtons();
+      setMobileStep("target");
     }
 
     async function drawPenalty() {
@@ -1416,9 +1533,9 @@
       syncDirectionUi();
       updateSteps();
       updateButtons();
+      // 抽完處罰後，若已有國王就導向受罰；否則留在處罰（Beer Pong）
+      if (state.round.king) setMobileStep("target");
     }
-
-    async function drawTarget() {
       if (busy || !state.round.king) return;
       if (state.round.targets.length >= MAX_TARGETS) {
         toast(`本輪最多 ${MAX_TARGETS} 個，請開新一輪`);
@@ -1520,9 +1637,8 @@
       renderTargetSlots();
       updateSteps();
       updateButtons();
+      setMobileStep("king", { scroll: false });
     }
-
-    function applyGroupSettings() {
       state.groupCount = clampInt(document.getElementById("input-groups").value, 2, 12, 5);
       state.menPerGroup = clampInt(document.getElementById("input-men").value, 0, 20, 2);
       state.womenPerGroup = clampInt(document.getElementById("input-women").value, 0, 30, 6);
@@ -1543,6 +1659,12 @@
         document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
         document.body.style.overflow = tab.dataset.tab === "settings" ? "auto" : "hidden";
       });
+    });
+
+    document.getElementById("step-nav").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-mobile-step]");
+      if (!btn) return;
+      setMobileStep(btn.dataset.mobileStep);
     });
 
     document.getElementById("btn-king").addEventListener("click", drawKing);
@@ -1706,6 +1828,7 @@
     syncKingModeUi();
     updateSteps();
     updateButtons();
+    setMobileStep("king", { scroll: false });
 
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
