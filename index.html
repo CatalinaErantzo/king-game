@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0c0c0c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="國王遊戲" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="description" content="聚會投影用國王遊戲抽籤：抽牌／抽組別、處罰清單、可加到主畫面" />
@@ -56,6 +56,21 @@
       background:
         radial-gradient(ellipse 70% 45% at 50% -10%, rgba(107, 158, 255, 0.06), transparent 55%),
         var(--bg);
+      /* 避開 iPhone 狀態列／瀏海 */
+      padding:
+        env(safe-area-inset-top, 0px)
+        env(safe-area-inset-right, 0px)
+        env(safe-area-inset-bottom, 0px)
+        env(safe-area-inset-left, 0px);
+    }
+
+    .app {
+      height: 100%;
+      max-width: 100vw;
+      margin: 0 auto;
+      padding: 1.1vh 1.6vw 1.4vh;
+      display: flex;
+      flex-direction: column;
     }
 
     button, input, select, textarea { font: inherit; color: inherit; }
@@ -90,15 +105,6 @@
       border-color: rgba(201, 122, 122, 0.35);
       color: var(--danger);
       background: var(--danger-dim);
-    }
-
-    .app {
-      height: 100%;
-      max-width: 100vw;
-      margin: 0 auto;
-      padding: 1.1vh 1.6vw 1.4vh;
-      display: flex;
-      flex-direction: column;
     }
 
     header.app-header {
