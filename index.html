@@ -589,6 +589,34 @@
     }
     .toast.show { transform: translateX(-50%) translateY(0); }
 
+    .install-banner {
+      display: none;
+      flex-shrink: 0;
+      align-items: flex-start;
+      gap: 0.75rem;
+      margin: 0.85vh 0 0;
+      padding: 0.75rem 0.9rem;
+      border: 1px solid var(--accent-border);
+      background: var(--accent-dim);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 0.92em;
+      line-height: 1.45;
+    }
+    .install-banner.show { display: flex; }
+    .install-banner strong { color: var(--accent); }
+    .install-banner .install-steps { flex: 1; min-width: 0; }
+    .install-banner ol {
+      margin: 0.35rem 0 0 1.1rem;
+      color: var(--text-muted);
+    }
+    .install-banner button.close-install {
+      flex-shrink: 0;
+      padding: 0.25rem 0.55rem;
+      font-size: 0.85em;
+      background: transparent;
+    }
+
     @media (max-aspect-ratio: 4/3) {
       html, body { overflow: auto; }
       .app { height: auto; min-height: 100%; }
@@ -620,6 +648,19 @@
         </nav>
       </div>
     </header>
+
+    <div class="install-banner" id="install-banner" role="note">
+      <div class="install-steps">
+        <strong>想變成桌面 App？</strong>
+        Safari 打開網址不會自動安裝，請手動加入主畫面：
+        <ol>
+          <li>點下方中間「分享」按鈕（□↑）</li>
+          <li>向下滑，點「加入主畫面」</li>
+          <li>之後從<strong>桌面圖示</strong>開啟，才會是全螢幕 App 外觀</li>
+        </ol>
+      </div>
+      <button type="button" class="close-install" id="dismiss-install" aria-label="關閉">關閉</button>
+    </div>
 
     <section id="panel-play" class="panel active">
       <div class="board">
@@ -1665,6 +1706,28 @@
         navigator.serviceWorker.register("./sw.js").catch(() => { /* ignore */ });
       });
     }
+
+    function isStandaloneApp() {
+      return (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true
+      );
+    }
+
+    function maybeShowInstallBanner() {
+      const banner = document.getElementById("install-banner");
+      if (!banner) return;
+      if (isStandaloneApp()) return;
+      if (localStorage.getItem("king-game-hide-install") === "1") return;
+      banner.classList.add("show");
+    }
+
+    document.getElementById("dismiss-install").addEventListener("click", () => {
+      localStorage.setItem("king-game-hide-install", "1");
+      document.getElementById("install-banner").classList.remove("show");
+    });
+
+    maybeShowInstallBanner();
   </script>
 </body>
 </html>
