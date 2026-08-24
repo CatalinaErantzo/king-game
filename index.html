@@ -1641,6 +1641,8 @@
       updateButtons();
       setMobileStep("king", { scroll: false });
     }
+
+    function applyGroupSettings() {
       state.groupCount = clampInt(document.getElementById("input-groups").value, 2, 12, 5);
       state.menPerGroup = clampInt(document.getElementById("input-men").value, 0, 20, 2);
       state.womenPerGroup = clampInt(document.getElementById("input-women").value, 0, 30, 6);
@@ -1659,7 +1661,13 @@
         document.querySelectorAll(".panel").forEach((p) => p.classList.remove("active"));
         tab.classList.add("active");
         document.getElementById(`panel-${tab.dataset.tab}`).classList.add("active");
-        document.body.style.overflow = tab.dataset.tab === "settings" ? "auto" : "hidden";
+        // 手機直式靠 CSS 允許捲動；不要強制 overflow:hidden
+        const mobile = window.matchMedia("(max-width: 900px), (max-aspect-ratio: 4/3)").matches;
+        if (!mobile) {
+          document.body.style.overflow = tab.dataset.tab === "settings" ? "auto" : "hidden";
+        } else {
+          document.body.style.overflow = "auto";
+        }
       });
     });
 
