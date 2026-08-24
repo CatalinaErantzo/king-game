@@ -1536,6 +1536,8 @@
       // 抽完處罰後，若已有國王就導向受罰；否則留在處罰（Beer Pong）
       if (state.round.king) setMobileStep("target");
     }
+
+    async function drawTarget() {
       if (busy || !state.round.king) return;
       if (state.round.targets.length >= MAX_TARGETS) {
         toast(`本輪最多 ${MAX_TARGETS} 個，請開新一輪`);
