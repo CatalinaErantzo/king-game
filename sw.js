@@ -1,5 +1,5 @@
 /* King Game PWA service worker — network-first for HTML, cache-first for assets */
-const CACHE = "king-game-v9";
+const CACHE = "king-game-v10";
 const PRECACHE = [
   "./",
   "./index.html",

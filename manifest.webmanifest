@@ -1,14 +1,14 @@
 {
   "name": "國王遊戲抽籤",
   "short_name": "國王遊戲",
-  "description": "聚會投影用國王遊戲抽籤：抽牌／抽組別、處罰清單、離線可用",
+  "description": "手機專用國王遊戲抽籤：抽牌／抽組別、處罰清單、可加到主畫面",
   "lang": "zh-Hant",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#0c0c0c",
-  "theme_color": "#0c0c0c",
+  "orientation": "portrait",
+  "background_color": "#121614",
+  "theme_color": "#121614",
   "icons": [
     {
       "src": "./icons/icon-192.png",
